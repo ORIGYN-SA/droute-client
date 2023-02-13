@@ -71,7 +71,7 @@ module {
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    public func publish(eventName: Text, payload: Candy.CandyValue): async* Broadcast.PublishResponse {
+    public func publish(params: Broadcast.PublishParams): async* Broadcast.PublishResponse {
       if (not initialized) await* init();
 
       try {
@@ -81,7 +81,7 @@ module {
 
         let broadcastActor = broadcastActors[hashNat32(randomSeed) % broadcastActors.size()];
 
-        let response = await broadcastActor.publish(eventName, payload, ?{ broadcastVersion = ?broadcastVersion });
+        let response = await broadcastActor.publish(params);
 
         if (response.broadcastVersion != broadcastVersion) await* updateBroadcastActors();
 
@@ -96,9 +96,7 @@ module {
 
           let broadcastActor = broadcastActors[hashNat32(randomSeed) % broadcastActors.size()];
 
-          let response = await broadcastActor.publish(eventName, payload, ?{ broadcastVersion = ?broadcastVersion });
-
-          return await broadcastActor.publish(eventName, payload, ?{ broadcastVersion = ?broadcastVersion });
+          return await broadcastActor.publish(params);
         };
 
         throw err;
