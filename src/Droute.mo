@@ -31,8 +31,8 @@ module {
     let subscribersIndexId = coalesce(settings.subscribersIndexId, Principal.fromText("aaaaa-aa"));
 
     let mainActor = actor(Principal.toText(mainId)):Main.Main;
-    let publishersIndexActor = actor(Principal.toText(mainId)):PublishersIndex.PublishersIndex;
-    let subscribersIndexActor = actor(Principal.toText(mainId)):SubscribersIndex.SubscribersIndex;
+    let publishersIndexActor = actor(Principal.toText(publishersIndexId)):PublishersIndex.PublishersIndex;
+    let subscribersIndexActor = actor(Principal.toText(subscribersIndexId)):SubscribersIndex.SubscribersIndex;
 
     var randomSeed = 0:Nat32;
     var broadcastVersion = 0:Nat64;
