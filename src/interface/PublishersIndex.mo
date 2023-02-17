@@ -7,7 +7,7 @@ module {
 
   public type PublisherInfoResponse = ?Types.SharedPublisher;
 
-  public type PublisherInfoParams = (publisherId: Principal, options: ?PublisherInfoOptions);
+  public type PublisherInfoParams = (options: ?PublisherInfoOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +17,7 @@ module {
 
   public type PublicationInfoResponse = ?Types.SharedPublication;
 
-  public type PublicationInfoParams = (publisherId: Principal, eventName: Text, options: ?PublicationInfoOptions);
+  public type PublicationInfoParams = (eventName: Text, options: ?PublicationInfoOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,7 @@ module {
 
   public type PublicationStatsResponse = Types.SharedStats;
 
-  public type PublicationStatsParams = (publisherId: Principal, options: ?PublicationStatsOptions);
+  public type PublicationStatsParams = (options: ?PublicationStatsOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +41,7 @@ module {
     prevPublisherInfo: ?Types.SharedPublisher;
   };
 
-  public type PublisherParams = (publisherId: Principal, options: ?PublisherOptions);
+  public type PublisherParams = (options: ?PublisherOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +57,7 @@ module {
     prevPublicationInfo: ?Types.SharedPublication;
   };
 
-  public type PublicationParams = (publisherId: Principal, eventName: Text, options: ?PublicationOptions);
+  public type PublicationParams = (eventName: Text, options: ?PublicationOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +71,7 @@ module {
     prevPublicationInfo: ?Types.SharedPublication;
   };
 
-  public type RemovePublicationParams = (publisherId: Principal, eventName: Text, options: ?RemovePublicationOptions);
+  public type RemovePublicationParams = (eventName: Text, options: ?RemovePublicationOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

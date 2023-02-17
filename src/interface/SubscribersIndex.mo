@@ -8,13 +8,13 @@ module {
 
   public type SubscriberInfoResponse = ?Types.SharedSubscriber;
 
-  public type SubscriberInfoParams = (subscriberId: Principal, options: ?SubscriberInfoOptions);
+  public type SubscriberInfoParams = (options: ?SubscriberInfoOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   public type SubscriptionInfoResponse = ?Types.SharedSubscription;
 
-  public type SubscriptionInfoParams = (subscriberId: Principal, eventName: Text);
+  public type SubscriptionInfoParams = (eventName: Text);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +25,7 @@ module {
 
   public type SubscriptionStatsResponse = Types.SharedStats;
 
-  public type SubscriptionStatsParams = (subscriberId: Principal, options: ?SubscriptionStatsOptions);
+  public type SubscriptionStatsParams = (options: ?SubscriptionStatsOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +42,7 @@ module {
     prevSubscriberInfo: ?Types.SharedSubscriber;
   };
 
-  public type SubscriberParams = (subscriberId: Principal, options: ?SubscriberOptions);
+  public type SubscriberParams = (options: ?SubscriberOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +57,7 @@ module {
     prevSubscriptionInfo: ?Types.SharedSubscription;
   };
 
-  public type SubscriptionParams = (subscriberId: Principal, eventName: Text, options: ?SubscriptionOptions);
+  public type SubscriptionParams = (eventName: Text, options: ?SubscriptionOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +70,7 @@ module {
     prevSubscriptionInfo: ?Types.SharedSubscription;
   };
 
-  public type UnsubscribeParams = (subscriberId: Principal, eventName: Text, options: ?UnsubscribeOptions);
+  public type UnsubscribeParams = (eventName: Text, options: ?UnsubscribeOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
