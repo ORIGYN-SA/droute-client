@@ -88,9 +88,9 @@ module {
         return response;
       } catch (err) {
         if (Error.message(err) == "E60010: Canister is inactive") {
-          randomSeed +%= 1;
-
           await* updateBroadcastActors();
+
+          randomSeed +%= 1;
 
           if (broadcastActors.size() == 0) Debug.trap("No broadcast canisters found");
 
