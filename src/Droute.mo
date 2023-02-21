@@ -1,18 +1,16 @@
 import Array "mo:base/Array";
 import Broadcast "./interface/Broadcast";
-import Candy "mo:candy/types";
-import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import Main "./interface/Main";
+import Set "mo:map/Set";
 import Principal "mo:base/Principal";
 import PublishersIndex "./interface/PublishersIndex";
-import Random "mo:base/Random";
 import SubscribersIndex "./interface/SubscribersIndex";
 import Types "./common/types";
-import { hashNat32 } "./common/utils";
-import { rangeFrom } "mo:base/Random";
+import { hashNat32; hashNat64 } "./common/utils";
+import { phash } "mo:map/Map";
 import { get = coalesce } "mo:base/Option";
-import { natToNat32 } "mo:prim";
+import { time; intToNat32Wrap } "mo:prim";
 
 module {
   public let defaultOptions: Types.Options = {
@@ -34,31 +32,53 @@ module {
     let publishersIndexActor = actor(Principal.toText(publishersIndexId)):PublishersIndex.PublishersIndex;
     let subscribersIndexActor = actor(Principal.toText(subscribersIndexId)):SubscribersIndex.SubscribersIndex;
 
-    var randomSeed = 0:Nat32;
     var broadcastVersion = 0:Nat64;
+    var broadcastIds = Set.new(phash);
     var broadcastActors = []:[Broadcast.Broadcast];
+    var blacklistedCallers = Set.new(phash);
+    var randomSeed = 0:Nat32;
     var initialized = false;
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    func updateBroadcastActors(): async* () {
+    func updateBroadcastIds(): async* () {
       let response = await mainActor.getBroadcastIds();
 
       broadcastVersion := response.broadcastVersion;
 
-      broadcastActors := Array.map<Principal, Broadcast.Broadcast>(response.broadcastIds, func(id) = actor(Principal.toText(id)));
+      broadcastIds := Set.fromIter(response.broadcastIds.vals(), phash);
+
+      broadcastActors := Array.map<Principal, Broadcast.Broadcast>(response.activeBroadcastIds, func(id) = actor(Principal.toText(id)));
     };
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     public func init(): async* () {
-      let randomBlob = await Random.blob();
+      await* updateBroadcastIds();
 
-      randomSeed := natToNat32(rangeFrom(32, randomBlob));
-
-      await* updateBroadcastActors();
+      randomSeed := intToNat32Wrap(hashNat64(time()));
 
       initialized := true;
+    };
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    public func handleEventGuard(caller: Principal): async* () {
+      if (not initialized) await* init();
+
+      if (Set.has(blacklistedCallers, phash, caller)) {
+        throw Error.reject("Principal " # debug_show(caller) # " is not a broadcast canister");
+      };
+
+      if (not Set.has(broadcastIds, phash, caller)) {
+        await* updateBroadcastIds();
+
+        if (not Set.has(broadcastIds, phash, caller)) {
+          Set.add(blacklistedCallers, phash, caller);
+
+          throw Error.reject("Principal " # debug_show(caller) # " is not a broadcast canister");
+        };
+      };
     };
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,22 +97,22 @@ module {
       try {
         randomSeed +%= 1;
 
-        if (broadcastActors.size() == 0) Debug.trap("No broadcast canisters found");
+        if (broadcastActors.size() == 0) throw Error.reject("No broadcast canisters found");
 
         let broadcastActor = broadcastActors[hashNat32(randomSeed) % broadcastActors.size()];
 
         let response = await broadcastActor.publish(params);
 
-        if (response.broadcastVersion != broadcastVersion) await* updateBroadcastActors();
+        if (response.broadcastVersion != broadcastVersion) await* updateBroadcastIds();
 
         return response;
       } catch (err) {
         if (Error.message(err) == "E60010: Canister is inactive") {
-          await* updateBroadcastActors();
+          await* updateBroadcastIds();
 
           randomSeed +%= 1;
 
-          if (broadcastActors.size() == 0) Debug.trap("No broadcast canisters found");
+          if (broadcastActors.size() == 0) throw Error.reject("No broadcast canisters found");
 
           let broadcastActor = broadcastActors[hashNat32(randomSeed) % broadcastActors.size()];
 

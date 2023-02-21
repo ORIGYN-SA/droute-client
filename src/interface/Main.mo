@@ -1,6 +1,7 @@
 module {
   public type BroadcastIdsResponse = {
     broadcastIds: [Principal];
+    activeBroadcastIds: [Principal];
     broadcastVersion: Nat64;
   };
 
