@@ -1,6 +1,12 @@
 import Types "../common/types";
 
 module {
+  public type State = {
+    subscribersIndexActor: SubscribersIndex;
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
   public type SubscriberInfoOptions = {
     includeListeners: ?Bool;
     includeSubscriptions: ?Bool;
@@ -10,11 +16,15 @@ module {
 
   public type SubscriberInfoParams = (options: ?SubscriberInfoOptions);
 
+  public type SubscriberInfoFullParams = (state: State, options: ?SubscriberInfoOptions);
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   public type SubscriptionInfoResponse = ?Types.SharedSubscription;
 
   public type SubscriptionInfoParams = (eventName: Text);
+
+  public type SubscriptionInfoFullParams = (state: State, eventName: Text);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +36,8 @@ module {
   public type SubscriptionStatsResponse = Types.SharedStats;
 
   public type SubscriptionStatsParams = (options: ?SubscriptionStatsOptions);
+
+  public type SubscriptionStatsFullParams = (state: State, options: ?SubscriptionStatsOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +56,8 @@ module {
 
   public type SubscriberParams = (options: ?SubscriberOptions);
 
+  public type SubscriberFullParams = (state: State, options: ?SubscriberOptions);
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   public type SubscriptionOptions = {
@@ -59,6 +73,8 @@ module {
 
   public type SubscriptionParams = (eventName: Text, options: ?SubscriptionOptions);
 
+  public type SubscriptionFullParams = (state: State, eventName: Text, options: ?SubscriptionOptions);
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   public type UnsubscribeOptions = {
@@ -71,6 +87,8 @@ module {
   };
 
   public type UnsubscribeParams = (eventName: Text, options: ?UnsubscribeOptions);
+
+  public type UnsubscribeFullParams = (state: State, eventName: Text, options: ?UnsubscribeOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

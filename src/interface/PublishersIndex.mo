@@ -1,6 +1,12 @@
 import Types "../common/types";
 
 module {
+  public type State = {
+    publishersIndexActor: PublishersIndex;
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
   public type PublisherInfoOptions = {
     includePublications: ?Bool;
   };
@@ -8,6 +14,8 @@ module {
   public type PublisherInfoResponse = ?Types.SharedPublisher;
 
   public type PublisherInfoParams = (options: ?PublisherInfoOptions);
+
+  public type PublisherInfoFullParams = (state: State, options: ?PublisherInfoOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +27,8 @@ module {
 
   public type PublicationInfoParams = (eventName: Text, options: ?PublicationInfoOptions);
 
+  public type PublicationInfoFullParams = (state: State, eventName: Text, options: ?PublicationInfoOptions);
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   public type PublicationStatsOptions = {
@@ -29,6 +39,8 @@ module {
   public type PublicationStatsResponse = Types.SharedStats;
 
   public type PublicationStatsParams = (options: ?PublicationStatsOptions);
+
+  public type PublicationStatsFullParams = (state: State, options: ?PublicationStatsOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +54,8 @@ module {
   };
 
   public type PublisherParams = (options: ?PublisherOptions);
+
+  public type PublisherFullParams = (state: State, options: ?PublisherOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +73,8 @@ module {
 
   public type PublicationParams = (eventName: Text, options: ?PublicationOptions);
 
+  public type PublicationFullParams = (state: State, eventName: Text, options: ?PublicationOptions);
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   public type RemovePublicationOptions = {
@@ -72,6 +88,8 @@ module {
   };
 
   public type RemovePublicationParams = (eventName: Text, options: ?RemovePublicationOptions);
+
+  public type RemovePublicationFullParams = (state: State, eventName: Text, options: ?RemovePublicationOptions);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

@@ -1,11 +1,11 @@
 import Candy "mo:candy/types";
-import DrouteClient "../src/Droute";
+import Droute "../src/Droute";
 import Principal "mo:base/Principal";
 import Types "../src/common/types";
 import { setTimer } "mo:prim";
 
 shared (deployer) actor class Publisher() {
-  let Droute = DrouteClient.Droute(?{
+  stable let droute = Droute.new(?{
     mainId = ?Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
     publishersIndexId = ?Principal.fromText("r7inp-6aaaa-aaaaa-aaabq-cai");
     subscribersIndexId = ?Principal.fromText("rkp4c-7iaaa-aaaaa-aaaca-cai");
@@ -14,16 +14,16 @@ shared (deployer) actor class Publisher() {
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   ignore setTimer(0, false, func(): async () {
-    await* Droute.init();
+    await* Droute.init(droute);
 
-    ignore await* Droute.registerPublication("test_event_1", null);
-    ignore await* Droute.registerPublication("test_event_2", null);
+    ignore await* Droute.registerPublication(droute, "test_event_1", null);
+    ignore await* Droute.registerPublication(droute, "test_event_2", null);
   });
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   public shared func publish(eventName: Text, payload: Candy.CandyValue): async Types.SharedEvent {
-    let response = await* Droute.publish(eventName, payload);
+    let response = await* Droute.publish(droute, eventName, payload);
 
     return response.eventInfo;
   };

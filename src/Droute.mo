@@ -1,5 +1,6 @@
 import Array "mo:base/Array";
 import Broadcast "./interface/Broadcast";
+import Candy "mo:candy/types";
 import Error "mo:base/Error";
 import Main "./interface/Main";
 import Set "mo:map/Set";
@@ -13,6 +14,20 @@ import { get = coalesce } "mo:base/Option";
 import { time; intToNat32Wrap } "mo:prim";
 
 module {
+  public type Droute = {
+    mainActor: Main.Main;
+    publishersIndexActor: PublishersIndex.PublishersIndex;
+    subscribersIndexActor: SubscribersIndex.SubscribersIndex;
+    var broadcastVersion: Nat64;
+    var broadcastIds: Set.Set<Principal>;
+    var broadcastActors: [Broadcast.Broadcast];
+    var blacklistedCallers: Set.Set<Principal>;
+    var randomSeed: Nat32;
+    var initialized: Bool;
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
   public let defaultOptions: Types.Options = {
     mainId = null;
     publishersIndexId = null;
@@ -21,162 +36,189 @@ module {
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  public class Droute(options: ?Types.Options) {
+  public func new(options: ?Types.Options): Droute {
     let settings = coalesce(options, defaultOptions);
 
     let mainId = coalesce(settings.mainId, Principal.fromText("aaaaa-aa"));
     let publishersIndexId = coalesce(settings.publishersIndexId, Principal.fromText("aaaaa-aa"));
     let subscribersIndexId = coalesce(settings.subscribersIndexId, Principal.fromText("aaaaa-aa"));
 
-    let mainActor = actor(Principal.toText(mainId)):Main.Main;
-    let publishersIndexActor = actor(Principal.toText(publishersIndexId)):PublishersIndex.PublishersIndex;
-    let subscribersIndexActor = actor(Principal.toText(subscribersIndexId)):SubscribersIndex.SubscribersIndex;
+    return {
+      mainActor = actor(Principal.toText(mainId));
+      publishersIndexActor = actor(Principal.toText(publishersIndexId));
+      subscribersIndexActor = actor(Principal.toText(subscribersIndexId));
+      var broadcastVersion = 0;
+      var broadcastIds = Set.new();
+      var broadcastActors = [];
+      var blacklistedCallers = Set.new();
+      var randomSeed = 0;
+      var initialized = false;
+    };
+  };
 
-    var broadcastVersion = 0:Nat64;
-    var broadcastIds = Set.new(phash);
-    var broadcastActors = []:[Broadcast.Broadcast];
-    var blacklistedCallers = Set.new(phash);
-    var randomSeed = 0:Nat32;
-    var initialized = false;
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  public func updateBroadcastIds(state: Droute): async* () {
+    let response = await state.mainActor.getBroadcastIds();
 
-    func updateBroadcastIds(): async* () {
-      let response = await mainActor.getBroadcastIds();
+    state.broadcastVersion := response.broadcastVersion;
 
-      broadcastVersion := response.broadcastVersion;
+    state.broadcastIds := Set.fromIter(response.broadcastIds.vals(), phash);
 
-      broadcastIds := Set.fromIter(response.broadcastIds.vals(), phash);
+    state.broadcastActors := Array.map<Principal, Broadcast.Broadcast>(response.activeBroadcastIds, func(id) = actor(Principal.toText(id)));
+  };
 
-      broadcastActors := Array.map<Principal, Broadcast.Broadcast>(response.activeBroadcastIds, func(id) = actor(Principal.toText(id)));
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  public func init(state: Droute): async* () {
+    if (not state.initialized) {
+      await* updateBroadcastIds(state);
+
+      state.randomSeed := intToNat32Wrap(hashNat64(time()));
+
+      state.initialized := true;
+    };
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  public func handleEventGuard(state: Droute, caller: Principal): async* () {
+    if (not state.initialized) await* init(state);
+
+    if (Set.has(state.blacklistedCallers, phash, caller)) {
+      throw Error.reject("Principal " # debug_show(caller) # " is not a broadcast canister");
     };
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    if (not Set.has(state.broadcastIds, phash, caller)) {
+      await* updateBroadcastIds(state);
 
-    public func init(): async* () {
-      await* updateBroadcastIds();
+      if (not Set.has(state.broadcastIds, phash, caller)) {
+        Set.add(state.blacklistedCallers, phash, caller);
 
-      randomSeed := intToNat32Wrap(hashNat64(time()));
-
-      initialized := true;
-    };
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    public func handleEventGuard(caller: Principal): async* () {
-      if (not initialized) await* init();
-
-      if (Set.has(blacklistedCallers, phash, caller)) {
         throw Error.reject("Principal " # debug_show(caller) # " is not a broadcast canister");
       };
+    };
+  };
 
-      if (not Set.has(broadcastIds, phash, caller)) {
-        await* updateBroadcastIds();
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        if (not Set.has(broadcastIds, phash, caller)) {
-          Set.add(blacklistedCallers, phash, caller);
+  public func confirmEventReceipt(state: Droute, broadcastId: Principal, eventId: Nat): async* Broadcast.ConfirmEventResponse {
+    let broadcastActor = actor(Principal.toText(broadcastId)):Broadcast.Broadcast;
 
-          throw Error.reject("Principal " # debug_show(caller) # " is not a broadcast canister");
-        };
+    return await broadcastActor.confirmEventReceipt(eventId);
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  public func publish(state: Droute, eventName: Text, payload: Candy.CandyValue): async* Broadcast.PublishResponse {
+    if (not state.initialized) await* init(state);
+
+    try {
+      state.randomSeed +%= 1;
+
+      if (state.broadcastActors.size() == 0) throw Error.reject("No broadcast canisters found");
+
+      let broadcastActor = state.broadcastActors[hashNat32(state.randomSeed) % state.broadcastActors.size()];
+
+      let response = await broadcastActor.publish(eventName, payload);
+
+      if (response.broadcastVersion != state.broadcastVersion) await* updateBroadcastIds(state);
+
+      return response;
+    } catch (err) {
+      if (Error.message(err) == "E60010: Canister is inactive") {
+        await* updateBroadcastIds(state);
+
+        state.randomSeed +%= 1;
+
+        if (state.broadcastActors.size() == 0) throw Error.reject("No broadcast canisters found");
+
+        let broadcastActor = state.broadcastActors[hashNat32(state.randomSeed) % state.broadcastActors.size()];
+
+        return await broadcastActor.publish(eventName, payload);
       };
+
+      throw err;
     };
+  };
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    public func confirmEventReceipt(broadcastId: Principal, eventId: Nat): async* Broadcast.ConfirmEventResponse {
-      let broadcastActor = actor(Principal.toText(broadcastId)):Broadcast.Broadcast;
+  public func getPublisherInfo(params: PublishersIndex.PublisherInfoFullParams): async* PublishersIndex.PublisherInfoResponse {
+    let (state, options) = params;
 
-      return await broadcastActor.confirmEventReceipt(eventId);
-    };
+    return await state.publishersIndexActor.getPublisherInfo(options);
+  };
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  public func getPublicationInfo(params: PublishersIndex.PublicationInfoFullParams): async* PublishersIndex.PublicationInfoResponse {
+    let (state, eventName, options) = params;
 
-    public func publish(params: Broadcast.PublishParams): async* Broadcast.PublishResponse {
-      if (not initialized) await* init();
+    return await state.publishersIndexActor.getPublicationInfo(eventName, options);
+  };
 
-      try {
-        randomSeed +%= 1;
+  public func getPublicationStats(params: PublishersIndex.PublicationStatsFullParams): async* PublishersIndex.PublicationStatsResponse {
+    let (state, options) = params;
 
-        if (broadcastActors.size() == 0) throw Error.reject("No broadcast canisters found");
+    return await state.publishersIndexActor.getPublicationStats(options);
+  };
 
-        let broadcastActor = broadcastActors[hashNat32(randomSeed) % broadcastActors.size()];
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        let response = await broadcastActor.publish(params);
+  public func getSubscriberInfo(params: SubscribersIndex.SubscriberInfoFullParams): async* SubscribersIndex.SubscriberInfoResponse {
+    let (state, options) = params;
 
-        if (response.broadcastVersion != broadcastVersion) await* updateBroadcastIds();
+    return await state.subscribersIndexActor.getSubscriberInfo(options);
+  };
 
-        return response;
-      } catch (err) {
-        if (Error.message(err) == "E60010: Canister is inactive") {
-          await* updateBroadcastIds();
+  public func getSubscriptionInfo(params: SubscribersIndex.SubscriptionInfoFullParams): async* SubscribersIndex.SubscriptionInfoResponse {
+    let (state, eventName) = params;
 
-          randomSeed +%= 1;
+    return await state.subscribersIndexActor.getSubscriptionInfo(eventName);
+  };
 
-          if (broadcastActors.size() == 0) throw Error.reject("No broadcast canisters found");
+  public func getSubscriptionStats(params: SubscribersIndex.SubscriptionStatsFullParams): async* SubscribersIndex.SubscriptionStatsResponse {
+    let (state, options) = params;
 
-          let broadcastActor = broadcastActors[hashNat32(randomSeed) % broadcastActors.size()];
+    return await state.subscribersIndexActor.getSubscriptionStats(options);
+  };
 
-          return await broadcastActor.publish(params);
-        };
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        throw err;
-      };
-    };
+  public func registerPublisher(params: PublishersIndex.PublisherFullParams): async* PublishersIndex.PublisherResponse {
+    let (state, options) = params;
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    return await state.publishersIndexActor.registerPublisher(options);
+  };
 
-    public func getPublisherInfo(params: PublishersIndex.PublisherInfoParams): async* PublishersIndex.PublisherInfoResponse {
-      return await publishersIndexActor.getPublisherInfo(params);
-    };
+  public func registerPublication(params: PublishersIndex.PublicationFullParams): async* PublishersIndex.PublicationResponse {
+    let (state, eventName, options) = params;
 
-    public func getPublicationInfo(params: PublishersIndex.PublicationInfoParams): async* PublishersIndex.PublicationInfoResponse {
-      return await publishersIndexActor.getPublicationInfo(params);
-    };
+    return await state.publishersIndexActor.registerPublication(eventName, options);
+  };
 
-    public func getPublicationStats(params: PublishersIndex.PublicationStatsParams): async* PublishersIndex.PublicationStatsResponse {
-      return await publishersIndexActor.getPublicationStats(params);
-    };
+  public func removePublication(params: PublishersIndex.RemovePublicationFullParams): async* PublishersIndex.RemovePublicationResponse {
+    let (state, eventName, options) = params;
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    return await state.publishersIndexActor.removePublication(eventName, options);
+  };
 
-    public func getSubscriberInfo(params: SubscribersIndex.SubscriberInfoParams): async* SubscribersIndex.SubscriberInfoResponse {
-      return await subscribersIndexActor.getSubscriberInfo(params);
-    };
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    public func getSubscriptionInfo(params: SubscribersIndex.SubscriptionInfoParams): async* SubscribersIndex.SubscriptionInfoResponse {
-      return await subscribersIndexActor.getSubscriptionInfo(params);
-    };
+  public func registerSubscriber(params: SubscribersIndex.SubscriberFullParams): async* SubscribersIndex.SubscriberResponse {
+    let (state, options) = params;
 
-    public func getSubscriptionStats(params: SubscribersIndex.SubscriptionStatsParams): async* SubscribersIndex.SubscriptionStatsResponse {
-      return await subscribersIndexActor.getSubscriptionStats(params);
-    };
+    return await state.subscribersIndexActor.registerSubscriber(options);
+  };
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  public func subscribe(params: SubscribersIndex.SubscriptionFullParams): async* SubscribersIndex.SubscriptionResponse {
+    let (state, eventName, options) = params;
 
-    public func registerPublisher(params: PublishersIndex.PublisherParams): async* PublishersIndex.PublisherResponse {
-      return await publishersIndexActor.registerPublisher(params);
-    };
+    return await state.subscribersIndexActor.subscribe(eventName, options);
+  };
 
-    public func registerPublication(params: PublishersIndex.PublicationParams): async* PublishersIndex.PublicationResponse {
-      return await publishersIndexActor.registerPublication(params);
-    };
+  public func unsubscribe(params: SubscribersIndex.UnsubscribeFullParams): async* SubscribersIndex.UnsubscribeResponse {
+    let (state, eventName, options) = params;
 
-    public func removePublication(params: PublishersIndex.RemovePublicationParams): async* PublishersIndex.RemovePublicationResponse {
-      return await publishersIndexActor.removePublication(params);
-    };
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    public func registerSubscriber(params: SubscribersIndex.SubscriberParams): async* SubscribersIndex.SubscriberResponse {
-      return await subscribersIndexActor.registerSubscriber(params);
-    };
-
-    public func subscribe(params: SubscribersIndex.SubscriptionParams): async* SubscribersIndex.SubscriptionResponse {
-      return await subscribersIndexActor.subscribe(params);
-    };
-
-    public func unsubscribe(params: SubscribersIndex.UnsubscribeParams): async* SubscribersIndex.UnsubscribeResponse {
-      return await subscribersIndexActor.unsubscribe(params);
-    };
+    return await state.subscribersIndexActor.unsubscribe(eventName, options);
   };
 };
