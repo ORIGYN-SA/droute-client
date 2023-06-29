@@ -14,7 +14,7 @@ shared (deployer) actor class Publisher() {
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   ignore setTimer(0, false, func(): async () {
-    await* Droute.init(droute);
+    await* Droute.updateBroadcastIds(droute);
 
     ignore await* Droute.registerPublication(droute, "test_event_1", null);
     ignore await* Droute.registerPublication(droute, "test_event_2", null);
@@ -23,7 +23,7 @@ shared (deployer) actor class Publisher() {
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   public shared func publish(eventName: Text, payload: Candy.CandyValue): async Types.SharedEvent {
-    let response = await* Droute.publish(droute, eventName, payload);
+    let response = await* Droute.publishSync(droute, eventName, payload);
 
     return response.eventInfo;
   };

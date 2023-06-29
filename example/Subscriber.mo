@@ -14,7 +14,7 @@ shared (deployer) actor class Subscriber() {
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   ignore setTimer(0, false, func(): async () {
-    await* Droute.init(droute);
+    await* Droute.updateBroadcastIds(droute);
 
     ignore await* Droute.subscribe(droute, "test_event_1", null);
     ignore await* Droute.subscribe(droute, "test_event_2", null);

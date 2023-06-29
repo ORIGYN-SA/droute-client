@@ -19,8 +19,18 @@ module {
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  public type PublishBatchResponse = {
+    eventsInfo: [Types.SharedEvent];
+    broadcastVersion: Nat64;
+  };
+
+  public type PublishBatchParams = (events: [Types.EventEntry]);
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
   public type Broadcast = actor {
     confirmEventReceipt: shared (params: ConfirmEventParams) -> async ConfirmEventResponse;
     publish: shared (params: PublishParams) -> async PublishResponse;
+    publishBatch: shared (params: PublishBatchParams) -> async PublishBatchResponse;
   };
 };

@@ -1,3 +1,7 @@
+import Broadcast "../interface/Broadcast";
+import Map "mo:map8/Map";
+import Principal "mo:base/Principal";
+import Types "types";
 import { nat32ToNat; nat64ToNat } "mo:prim";
 
 module {
@@ -20,4 +24,30 @@ module {
 
     return nat64ToNat(hash >> 31 ^ hash & 0x3fffffff);
   };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  public func getEventSize(eventEntry: Types.EventEntry): Nat {
+    let (eventName, payload) = eventEntry;
+
+    let tempSharedEvent: Types.SharedEvent = {
+      id = 0xffffffffffffffff;
+      eventName = eventName;
+      publisherId = Principal.fromBlob("00000000000000000000000000000000");
+      payload = payload;
+      createdAt = 0xffffffffffffffff;
+      nextBroadcastTime = 0xffffffffffffffff;
+      numberOfAttempts = 0xff;
+    };
+
+    return (to_candid(tempSharedEvent)).size();
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  public let bahash: Map.HashUtils<Broadcast.Broadcast> = (
+    func(key) = Map.hashPrincipal(Principal.fromActor(key)),
+    func(a, b) = a == b,
+    func() = actor("aaaaa-aa"),
+  );
 };

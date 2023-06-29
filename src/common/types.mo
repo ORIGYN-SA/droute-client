@@ -1,3 +1,4 @@
+import Buffer "mo:buffer/StableBuffer";
 import Candy "mo:candy/types";
 
 module {
@@ -54,7 +55,7 @@ module {
   };
 
   public type SharedEvent = {
-    id: Nat;
+    id: Nat64;
     eventName: Text;
     publisherId: Principal;
     payload: Candy.CandyValue;
@@ -62,4 +63,23 @@ module {
     nextBroadcastTime: Nat64;
     numberOfAttempts: Nat8;
   };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  public type CallbackOptions = {
+    onRespose: (eventInfo: SharedEvent) -> ();
+    onError: (eventName: Text, payload: Candy.CandyValue, error: Text) -> ();
+  };
+
+  public type EventEntry = (
+    eventName: Text,
+    payload: Candy.CandyValue,
+  );
+
+  public type EventBatch = {
+    events: Buffer.StableBuffer<EventEntry>;
+    var size: Nat;
+  };
+
+  public type EventBatchGroup = Buffer.StableBuffer<EventBatch>;
 };
