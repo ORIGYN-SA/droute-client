@@ -2,7 +2,8 @@
   dependencies = [
     "base",
     "candy",
-    "map",
+    "map8",
+    "buffer",
   ],
-  compiler = Some "0.8.2",
+  compiler = Some "0.9.1",
 }

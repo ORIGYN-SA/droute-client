@@ -1,145 +1,44 @@
-import Array "mo:base/Array";
-import Broadcast "./interface/Broadcast";
-import Candy "mo:candy/types";
-import Error "mo:base/Error";
-import Main "./interface/Main";
-import Set "mo:map/Set";
-import Principal "mo:base/Principal";
+import Init "./modules/Init";
+import Publish "./modules/Publish";
 import PublishersIndex "./interface/PublishersIndex";
+import Receive "./modules/Receive";
+import State "./common/state";
 import SubscribersIndex "./interface/SubscribersIndex";
 import Types "./common/types";
-import { hashNat32; hashNat64 } "./common/utils";
-import { phash } "mo:map/Map";
-import { get = coalesce } "mo:base/Option";
-import { time; intToNat32Wrap } "mo:prim";
 
 module {
-  public type Droute = {
-    mainActor: Main.Main;
-    publishersIndexActor: PublishersIndex.PublishersIndex;
-    subscribersIndexActor: SubscribersIndex.SubscribersIndex;
-    var broadcastVersion: Nat64;
-    var broadcastIds: Set.Set<Principal>;
-    var broadcastActors: [Broadcast.Broadcast];
-    var blacklistedCallers: Set.Set<Principal>;
-    var randomSeed: Nat32;
-    var initialized: Bool;
+  public type Droute = State.Droute;
+
+  public let { defaultOptions } = Init;
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  public func new(params: Init.NewParams): Init.NewResult {
+    return Init.new(params);
+  };
+
+  public func updateBroadcastIds(params: Init.UpdateBroadcastIdsParams): async* Init.UpdateBroadcastIdsResult {
+    return await* Init.updateBroadcastIds(params);
   };
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  public let defaultOptions: Types.Options = {
-    mainId = null;
-    publishersIndexId = null;
-    subscribersIndexId = null;
+  public func handleEventGuard(params: Receive.HandleEventGuardParams): async* Receive.HandleEventGuardResult {
+    return await* Receive.handleEventGuard(params);
+  };
+
+  public func confirmEventReceipt(params: Receive.ConfirmEventReceiptParams): async* Receive.ConfirmEventReceiptResult {
+    return await* Receive.confirmEventReceipt(params);
   };
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  public func new(options: ?Types.Options): Droute {
-    let settings = coalesce(options, defaultOptions);
-
-    let mainId = coalesce(settings.mainId, Principal.fromText("aaaaa-aa"));
-    let publishersIndexId = coalesce(settings.publishersIndexId, Principal.fromText("aaaaa-aa"));
-    let subscribersIndexId = coalesce(settings.subscribersIndexId, Principal.fromText("aaaaa-aa"));
-
-    return {
-      mainActor = actor(Principal.toText(mainId));
-      publishersIndexActor = actor(Principal.toText(publishersIndexId));
-      subscribersIndexActor = actor(Principal.toText(subscribersIndexId));
-      var broadcastVersion = 0;
-      var broadcastIds = Set.new();
-      var broadcastActors = [];
-      var blacklistedCallers = Set.new();
-      var randomSeed = 0;
-      var initialized = false;
-    };
+  public func publishSync(params: Publish.PublishSyncParams): async* Publish.PublishSyncResult {
+    return await* Publish.publishSync(params);
   };
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  public func updateBroadcastIds(state: Droute): async* () {
-    let response = await state.mainActor.getBroadcastIds();
-
-    state.broadcastVersion := response.broadcastVersion;
-
-    state.broadcastIds := Set.fromIter(response.broadcastIds.vals(), phash);
-
-    state.broadcastActors := Array.map<Principal, Broadcast.Broadcast>(response.activeBroadcastIds, func(id) = actor(Principal.toText(id)));
-  };
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  public func init(state: Droute): async* () {
-    if (not state.initialized) {
-      await* updateBroadcastIds(state);
-
-      state.randomSeed := intToNat32Wrap(hashNat64(time()));
-
-      state.initialized := true;
-    };
-  };
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  public func handleEventGuard(state: Droute, caller: Principal): async* () {
-    if (not state.initialized) await* init(state);
-
-    if (Set.has(state.blacklistedCallers, phash, caller)) {
-      throw Error.reject("Principal " # debug_show(caller) # " is not a broadcast canister");
-    };
-
-    if (not Set.has(state.broadcastIds, phash, caller)) {
-      await* updateBroadcastIds(state);
-
-      if (not Set.has(state.broadcastIds, phash, caller)) {
-        Set.add(state.blacklistedCallers, phash, caller);
-
-        throw Error.reject("Principal " # debug_show(caller) # " is not a broadcast canister");
-      };
-    };
-  };
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  public func confirmEventReceipt(state: Droute, broadcastId: Principal, eventId: Nat): async* Broadcast.ConfirmEventResponse {
-    let broadcastActor = actor(Principal.toText(broadcastId)):Broadcast.Broadcast;
-
-    return await broadcastActor.confirmEventReceipt(eventId);
-  };
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  public func publish(state: Droute, eventName: Text, payload: Candy.CandyValue): async* Broadcast.PublishResponse {
-    if (not state.initialized) await* init(state);
-
-    try {
-      state.randomSeed +%= 1;
-
-      if (state.broadcastActors.size() == 0) throw Error.reject("No broadcast canisters found");
-
-      let broadcastActor = state.broadcastActors[hashNat32(state.randomSeed) % state.broadcastActors.size()];
-
-      let response = await broadcastActor.publish(eventName, payload);
-
-      if (response.broadcastVersion != state.broadcastVersion) await* updateBroadcastIds(state);
-
-      return response;
-    } catch (err) {
-      if (Error.message(err) == "E60010: Canister is inactive") {
-        await* updateBroadcastIds(state);
-
-        state.randomSeed +%= 1;
-
-        if (state.broadcastActors.size() == 0) throw Error.reject("No broadcast canisters found");
-
-        let broadcastActor = state.broadcastActors[hashNat32(state.randomSeed) % state.broadcastActors.size()];
-
-        return await broadcastActor.publish(eventName, payload);
-      };
-
-      throw err;
-    };
+  public func publish(params: Publish.PublishParams): Publish.PublishResult {
+    return Publish.publish(params);
   };
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
